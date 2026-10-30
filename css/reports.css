@@ -1,0 +1,3 @@
+/* Reports page styles */
+main{--accent:#c8102e}
+select[data-rs]{max-width:200px}
