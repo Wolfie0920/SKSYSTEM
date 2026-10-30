@@ -265,7 +265,7 @@ addEventListener('hashchange',()=>setMenu(false));
 addEventListener('keydown',e=>{if(e.key==='Escape')setMenu(false)});
 document.addEventListener('click',e=>{if(!e.target.closest('header,#sb'))setMenu(false)});
 /* ---- Supabase ---- */
-const SB_URL='PASTE_YOUR_SUPABASE_URL',SB_KEY='PASTE_YOUR_SUPABASE_ANON_KEY';
+const SB_URL='sb_publishable_wMnWoflBw2l3VROR1r8DyA_WtQ_Se_J',
 let sb=null;try{if(!SB_URL.startsWith('PASTE'))sb=supabase.createClient(SB_URL,SB_KEY)}catch(e){}
 /* Demo mode: used automatically until Supabase keys are added. Data stays in this browser. */
 let DU=[];try{DU=JSON.parse(localStorage.getItem('kkdemo_u'))||[]}catch(e){}
