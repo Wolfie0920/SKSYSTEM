@@ -1,0 +1,5 @@
+/* Chat page styles */
+main{--accent:#0e9aa7}
+.chat{display:grid;grid-template-columns:170px 1fr;gap:1rem}
+@media(max-width:640px){.chat{grid-template-columns:1fr}}
+.chat .msgs{height:420px}

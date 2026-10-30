@@ -1,0 +1,20 @@
+/* Achievements page styles */
+main{--accent:#f2b705}
+.tile{display:block;text-decoration:none;color:inherit}
+.tile:hover{border-color:var(--blue)}
+.tile b{font:800 1.8rem Fraunces,serif;color:var(--blue);display:block}
+.prof{display:flex;gap:1rem;align-items:center;justify-content:space-between;flex-wrap:wrap;border-left:6px solid var(--sun);margin-bottom:1.2rem}
+.achimg{display:block;width:100%;padding:0;background:none;border:0;position:relative;cursor:pointer;border-radius:8px}
+.ph{display:grid;place-items:center;font-size:3rem;background:var(--line)}
+.cnt{position:absolute;right:.5rem;bottom:.5rem;background:rgba(0,0,0,.65);color:#fff;font-size:.8rem;padding:.1rem .5rem;border-radius:99px}
+.clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.ed{margin-top:.6rem}
+.ed summary{cursor:pointer;color:var(--blue)}
+.ed form{margin-top:.6rem}
+.dash{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}
+.brow{display:grid;grid-template-columns:minmax(90px,150px) 1fr 2rem;gap:.6rem;align-items:center;margin:.5rem 0;font-size:.92rem}
+.brow .prog{margin:0}
+.brow b{text-align:right}
+dialog{max-width:min(720px,94vw);width:100%;border:1px solid var(--line);border-radius:14px;background:var(--surf);color:var(--ink);padding:1rem;max-height:90vh;overflow:auto}
+dialog::backdrop{background:rgba(0,0,0,.55)}
+dialog .cover{aspect-ratio:4/3;object-fit:contain;background:var(--bg)}

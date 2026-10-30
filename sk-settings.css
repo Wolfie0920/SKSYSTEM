@@ -1,0 +1,3 @@
+/* SK Settings page styles */
+main{--accent:#5d6578}
+form[data-sp] h3{color:var(--blue)}
