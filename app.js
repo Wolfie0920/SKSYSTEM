@@ -163,7 +163,7 @@ function persistMe(){try{localStorage.setItem('kkme',JSON.stringify(me))}catch(e
 
 document.addEventListener('click',e=>{
  const b=e.target.closest('button');if(!b)return;
- if(b.id==='out'){if(sb)sb.auth.signOut();else try{localStorage.removeItem('kkdemo_me')}catch(x){}cloud.snap={};try{Object.keys(localStorage).filter(k=>k.startsWith('kkc_')).forEach(k=>localStorage.removeItem(k))}catch(x){}me=null;try{localStorage.removeItem('kkme')}catch(x){}return render()}
+ if(b.id==='out'){if(sb)sb.auth.signOut();else try{localStorage.removeItem('kkdemo_me')}catch(x){}cloud.snap={};idb('clear');me=null;try{localStorage.removeItem('kkme')}catch(x){}return render()}
  if(b.dataset.del){const[k,i]=b.dataset.del.split(':');if(confirm('Delete this item?')){DB[k]=DB[k].filter(x=>x.id!==i);save();render()}}
  if(b.dataset.appr){DB.resolutions.find(r=>r.id===b.dataset.appr).status='Approved';save();render()}
  if(b.dataset.room){window.room=b.dataset.room;render()}
@@ -284,7 +284,7 @@ const AUTH={
  in:v=>sb?sb.auth.signInWithPassword({email:v.email,password:v.password}):Promise.resolve((()=>{const u=DU.find(x=>x.email===v.email.trim().toLowerCase()&&x.password===v.password.trim());return u?dses(u):{data:{},error:{message:'Wrong email or password.'}}})()),
  up:v=>sb?sb.auth.signUp({email:v.email,password:v.password,options:{data:{name:v.name.trim(),req:v.type==='sk'?'sk':''}}}):Promise.resolve((()=>{const e=v.email.trim().toLowerCase();if(DU.some(x=>x.email===e))return{data:{},error:{message:'That email already has an account.'}};const u={id:uid(),email:e,password:v.password,name:v.name.trim(),role:'kab',status:v.type==='sk'?'pending':'active',req:v.type==='sk'?'sk':''};DU.push(u);dsave();return dses(u)})()),
  set:(id,p)=>sb?sb.from('members').update(p).eq('id',id):Promise.resolve((()=>{Object.assign(DU.find(x=>x.id===id),p);dsave();return{error:null}})()),
- upd:p=>sb?sb.from('members').update(p).eq('id',me.id):Promise.resolve((()=>{Object.assign(DU.find(x=>x.id===me.id),p);dsave();return{error:null}})())
+ upd:p=>sb?sb.from('members').upsert({id:me.id,email:me.u,...p}).select().then(r=>r.error?r:(r.data&&r.data.length?{error:null}:{error:{message:'Your profile could not be saved. Please run supabase-setup.sql in Supabase, then try again.'}})):Promise.resolve((()=>{Object.assign(DU.find(x=>x.id===me.id),p);dsave();return{error:null}})())
 };
 const COLS=['assembly','resolutions','kabataan','projects','forum','reports','chat','profiles','achievements'],OWN=['profiles','reports','kabataan'];
 const canon=o=>JSON.stringify(o,(k,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(x=>[x,v[x]])):v);
@@ -304,7 +304,7 @@ const cloud={snap:{},
  },
  async push(){
   if(!sb){if(me)OWN.forEach(c=>DB[c].forEach(it=>{if(!it.uid)it.uid=me.id}));try{localStorage.setItem('kkdemo',JSON.stringify(DB))}catch(e){alert('Browser storage is full. Remove some pictures.')}return}
-  if(!me)return;const up=[],cur={};
+  if(!me)return;if(!ready){alert('Still loading the latest data. Please try again in a moment.');return}const up=[],cur={};
   for(const c of COLS)for(const it of DB[c]){
    if(OWN.includes(c)&&!it.uid)it.uid=me.id;
    const{mine,id,...d}=it,j=canon(d);cur[c+':'+id]=1;
@@ -322,15 +322,21 @@ const msg=t=>{const e=$('#err');if(e)e.textContent=t};
 async function loadMem(){if(!sb){MEM=DU;PEND=DU.filter(u=>u.status==='pending');OWN.forEach(c=>DB[c].forEach(it=>it.mine=it.uid===me.id));return}
  const{data}=await sb.from('members').select('id,name,role,pos,avatar,purok,bio');MEM=data||[];
  if(isChair()){const r=await sb.from('members').select('id,email,name').eq('status','pending');PEND=r.data||[]}}
+let ready=true;
+const idb=(m,k,v)=>new Promise(res=>{try{const r=indexedDB.open('kkportal',1);r.onupgradeneeded=()=>r.result.createObjectStore('c');r.onerror=()=>res();r.onsuccess=()=>{try{const t=r.result.transaction('c',m==='get'?'readonly':'readwrite'),st=t.objectStore('c'),q=m==='get'?st.get(k):m==='clear'?st.clear():st.put(v,k);q.onsuccess=()=>res(q.result);q.onerror=()=>res()}catch(e){res()}}}catch(e){res()}});
+const sig=()=>canon([COLS.map(c=>DB[c]),MEM,PEND,me]);
 async function boot(u){
+ const ck='c_'+u.id;let warm=false,s0='';
+ if(sb){const c=await idb('get',ck);if(c&&c.me&&c.me.status==='active'){me=c.me;COLS.forEach(k=>{DB[k]=c.db[k]||[];DB[k].forEach(it=>{const{mine,id,...d}=it;cloud.snap[k+':'+id]=canon(d)})});MEM=c.mem||[];PEND=c.pend||[];ready=false;warm=true;seen=Date.now();s0=sig();render()}}
  let m=sb?(await sb.from('members').select('*').eq('id',u.id).maybeSingle()).data:DU.find(x=>x.id===u.id);
- if(!m&&sb){const r={id:u.id,email:u.email,name:(u.user_metadata&&u.user_metadata.name)||u.email,status:(u.user_metadata&&u.user_metadata.req==='sk')?'pending':'active',req:(u.user_metadata&&u.user_metadata.req)||null};const x=await sb.from('members').insert(r).select().single();m=x.data||r}
+ if(!m&&sb){const md=u.user_metadata||{},r={id:u.id,email:u.email,name:md.name||u.email,status:md.req==='sk'?'pending':'active',req:md.req||null};
+  let x=await sb.from('members').insert(r).select().single();
+  if(x.error)x=await sb.from('members').insert({id:u.id,email:u.email,name:r.name}).select().single();
+  m=x.data||r}
  me={id:u.id,u:u.email,name:m.name,role:m.role||'kab',pos:m.pos,avatar:m.avatar,contact:m.contact,purok:m.purok,bio:m.bio,status:m.status||'active'};
- const ck='kkc_'+u.id;
- if(sb&&me.status==='active'){try{const c=JSON.parse(localStorage.getItem(ck));if(c){COLS.forEach(k=>{DB[k]=c.db[k]||[];DB[k].forEach(it=>{const{mine,id,...d}=it;cloud.snap[k+':'+id]=canon(d)})});MEM=c.mem||[];seen=Date.now();render()}}catch(e){}}
- await cloud.pull();await loadMem();seen=Date.now();
- if(sb&&me.status==='active')try{const j=JSON.stringify({db:Object.fromEntries(COLS.map(k=>[k,DB[k]])),mem:MEM});if(j.length<2e6)localStorage.setItem(ck,j)}catch(e){}
- render();
+ await cloud.pull();await loadMem();ready=true;seen=Date.now();
+ if(sb&&me.status==='active')idb('put',ck,{me,db:Object.fromEntries(COLS.map(k=>[k,DB[k]])),mem:MEM,pend:PEND});
+ if(!warm||sig()!==s0)render();
 }
 views.gate=()=>false?`<h2>Connect Supabase</h2><p class="note">Open this file in a text editor and paste your Supabase project URL and anon key at the top of the script (SB_URL and SB_KEY). Then run supabase-setup.sql in the Supabase SQL editor.</p>`:
 `<div class="hero"><h1>Sign in to the KK–SK Portal</h1><p>Every member uses a real account. There are no anonymous users.</p>${sb?'':'<p class="note">Demo mode: data stays in this browser. Test SK login: chair@demo.ph / sk123456. Add your Supabase keys later to go live.</p><button type="button" id="demo-sk">Log in as demo SK</button>'}</div>
@@ -367,8 +373,8 @@ document.addEventListener('submit',async e=>{
  const f=e.target;if(!['f-li2','f-su2','f-me','f-pc'].includes(f.id))return;
  e.preventDefault();e.stopImmediatePropagation();const v=fd(f);
  if(f.id==='f-pc'){DB.chat.push({id:uid(),room:proom,a:me.name,t:v.t,d:Date.now()});save();f.reset();drawPop();$('#pmsgs').scrollTop=1e9}
- else if(f.id==='f-li2'){const{data,error}=await AUTH.in(v);if(error)return msg(error.message);boot(data.user).catch(x=>msg('Login error: '+x.message))}
- else if(f.id==='f-su2'){const{data,error}=await AUTH.up(v);if(error)return msg(error.message);if(!data.session)return msg('Check your email to confirm your account, then log in.');boot(data.user)}
+ else if(f.id==='f-li2'){const{data,error}=await AUTH.in(v);if(error){const bad=/invalid|credential|password|wrong/i.test(error.message);popup(bad?'Wrong password':'Could not log in',bad?'The email or password you entered is incorrect. Please try again.':error.message);return msg(bad?'Wrong email or password.':error.message)}boot(data.user).catch(x=>msg('Login error: '+x.message))}
+ else if(f.id==='f-su2'){const{data,error}=await AUTH.up(v);if(error)return msg(error.message);if(!data.session)return msg('Check your email to confirm your account, then log in. Council accounts also need approval from the SK Chairperson.');boot(data.user)}
  else{const p={name:v.name.trim(),purok:v.purok.trim(),contact:v.contact.trim(),bio:v.bio||'',avatar:pav||me.avatar||null};if(isSK())p.pos=(v.pos||'').trim();
   const{error}=await AUTH.upd(p);if(error)return msg(error.message);
   Object.assign(me,p);pav=null;await loadMem();location.href='home.html';render()}
@@ -456,6 +462,19 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-apv]
  if(error)return alert(error.message);await loadMem();render();note(ap?'Approved. They now have council access.':rj?'Request rejected.':'Council access removed.')});
 setInterval(async()=>{if(isChair()&&!document.hidden){const n=PEND.length;await loadMem();if(PEND.length!==n)render()}},20000);
 setInterval(async()=>{if(!me||me.status!=='pending'||document.hidden)return;const m=sb?(await sb.from('members').select('status').eq('id',me.id).maybeSingle()).data:DU.find(x=>x.id===me.id);if(m&&m.status!==me.status)boot({id:me.id,email:me.u})},8000);
+/* ---- Login page, popups, prefetch ---- */
+function popup(t,m){let d=$('#pop');if(!d){d=document.createElement('dialog');d.id='pop';d.setAttribute('aria-labelledby','pt');d.innerHTML='<h2 id="pt"></h2><p id="pm"></p><button type="button" id="px">OK</button>';document.body.appendChild(d);d.querySelector('#px').onclick=()=>d.close()}
+ d.querySelector('#pt').textContent=t;d.querySelector('#pm').textContent=m;try{d.showModal()}catch(e){d.setAttribute('open','')}}
+let gtab='in';
+views.gate=()=>`<div class="login"><div class="hero"><h1>KK–SK Portal</h1><p>Every member uses a real account. There are no anonymous users.</p>${sb?'':'<p class="note">Demo mode: data stays in this browser. Add your Supabase keys to go live.</p><button type="button" id="demo-sk">Log in as demo SK Chairperson</button>'}</div>
+<div class="tabs" role="tablist"><button role="tab" aria-selected="${gtab==='in'}" class="${gtab==='in'?'':'alt'}" data-gt="in">Log in</button><button role="tab" aria-selected="${gtab==='up'}" class="${gtab==='up'?'':'alt'}" data-gt="up">Create account</button></div>
+${gtab==='in'?`<form id="f-li2" class="card"><label>Email<input type="email" name="email" required autocomplete="email"></label><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button>Log in</button></form>`:
+`<form id="f-su2" class="card"><label>Full name<input name="name" required autocomplete="name"></label><label>Email<input type="email" name="email" required autocomplete="email"></label>
+<fieldset class="types"><legend>I am signing up as</legend><label class="opt"><input type="radio" name="type" value="kab" checked><span><b>Kabataan member</b><br><small>You can use the portal right after signing up.</small></span></label><label class="opt"><input type="radio" name="type" value="sk"><span><b>SK council member</b><br><small>The SK Chairperson must approve your account before you can use council features.</small></span></label></fieldset>
+<label>Password (6+ characters)<input type="password" name="password" minlength="6" required autocomplete="new-password"></label><button>Create account</button></form>`}
+<p id="err" class="bad" role="alert"></p></div>`;
+document.addEventListener('click',e=>{const b=e.target.closest('[data-gt]');if(b){gtab=b.dataset.gt;render()}});
+document.addEventListener('pointerover',e=>{const a=e.target.closest&&e.target.closest('#nav a');if(a&&!a.dataset.pf){a.dataset.pf=1;const l=document.createElement('link');l.rel='prefetch';l.href=a.href;document.head.appendChild(l)}});
 document.body.classList.add('first');setTimeout(()=>document.body.classList.remove('first'),700);
 /* Start: restore the session first so the login screen never flashes between pages */
 (async()=>{try{if(sb){const{data}=await sb.auth.getSession();if(data.session)return await boot(data.session.user)}else{const u=DU.find(x=>x.id===localStorage.getItem('kkdemo_me'));if(u)return await boot({id:u.id,email:u.email})}}catch(e){console.error(e)}render()})();
